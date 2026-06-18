@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login | Painel de Demandas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-page">
+  <div class="login-bg-grid"></div>
+  <div class="login-orb orb-one"></div>
+  <div class="login-orb orb-two"></div>
+  <div class="login-orb orb-three"></div>
+  <div class="login-particles" aria-hidden="true">
+    <span></span><span></span><span></span><span></span><span></span><span></span>
+    <span></span><span></span><span></span><span></span><span></span><span></span>
+  </div>
+
+  <main class="login-shell">
+    <section class="login-card">
+      <div class="login-logo-wrap">
+        <img src="https://i.imgur.com/15rWePl.png" alt="Logo" class="login-logo">
+      </div>
+
+      <p class="login-eyebrow">Esteira OSP</p>
+      <h1>Bem-vindo ao Painel de Demandas</h1>
+      <p class="login-subtitle">Acesse a torre de controle para acompanhar demandas, checkpoints e indicadores executivos.</p>
+
+      {% if error %}
+      <div class="login-error">{{ error }}</div>
+      {% endif %}
+
+      <form class="login-form" method="post" autocomplete="on">
+        <label>Usuário
+          <input type="text" name="username" placeholder="Digite seu usuário" required autofocus>
+        </label>
+        <label>Senha
+          <input type="password" name="password" placeholder="Digite sua senha" required>
+        </label>
+        <button class="login-submit" type="submit">Entrar no cockpit</button>
+      </form>
+
+      <div class="login-hint">
+        <span></span>
+        <p>Credenciais configuráveis via Render: <strong>LOGIN_USER</strong> e <strong>LOGIN_PASSWORD</strong>.</p>
+      </div>
+    </section>
+
+    <aside class="login-preview-card">
+      <div class="login-preview-top">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </div>
+      <h2>Controle total da esteira</h2>
+      <div class="login-mini-kpis">
+        <article><strong>30</strong><span>Demandas</span></article>
+        <article><strong>✓</strong><span>Checkpoint</span></article>
+        <article><strong>◔</strong><span>Indicadores</span></article>
+      </div>
+      <div class="login-wave"></div>
+    </aside>
+  </main>
+
+  <script>
+    document.addEventListener('pointermove', (event) => {
+      const x = (event.clientX / window.innerWidth) * 100;
+      const y = (event.clientY / window.innerHeight) * 100;
+      document.body.style.setProperty('--mx', `${x}%`);
+      document.body.style.setProperty('--my', `${y}%`);
+    });
+  </script>
+</body>
+</html>

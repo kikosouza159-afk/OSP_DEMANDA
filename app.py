@@ -10,7 +10,7 @@ except Exception:
     # Localmente, python-dotenv carrega o .env quando instalado.
     pass
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, text
 
@@ -34,6 +34,42 @@ app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(os.getenv("DATABASE_URL"))
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
+
+# Usuários cadastrados diretamente no Python.
+# Observação: para produção pública, o ideal é migrar senhas para variáveis de ambiente
+# ou para uma tabela de usuários com hash de senha. Para uso interno/teste, este formato funciona.
+USUARIOS = {
+    "admin": "123456",
+    "gerber": "nicolas1616",
+    "elvis.santos@olos.com.br": "olos@2026",
+    "nubia.gomes@olos.com.br": "olos@2026",
+    "eduardo.molina@olos.com.br": "olos@2026",
+    "michele.silva@olos.com.br": "olos@2026",
+
+    # Usuários restritos por cliente
+    "sky": "sky123",
+    "negocie_online": "negocie@2026",
+    "talentos": "talentos123",
+    "sky_talentos": "multi123",
+    "link": "link123",
+}
+
+USUARIOS_RESTRITOS_CLIENTE = {
+    "sky": ["SKY"],
+    "negocie_online": ["NEGOCIE ONLINE", "NEGOCIE_ONLINE"],
+    "talentos": ["TALENTOS"],
+    "sky_talentos": ["SKY", "TALENTOS"],
+    "link": ["LINK", "LINK SOLUCOES", "LINK SOLUÇÕES"],
+}
+
+USUARIOS_ADMIN = {
+    "admin",
+    "gerber",
+    "elvis.santos@olos.com.br",
+    "nubia.gomes@olos.com.br",
+    "eduardo.molina@olos.com.br",
+    "michele.silva@olos.com.br",
+}
 
 db = SQLAlchemy(app)
 
@@ -207,6 +243,55 @@ def clean_text(value):
     return value or None
 
 
+def normalize_key(value):
+    return (value or "").strip().upper()
+
+
+def user_is_admin():
+    return bool(session.get("is_admin"))
+
+
+def clientes_permitidos_usuario():
+    return session.get("clientes_permitidos") or []
+
+
+def apply_access_filter(query):
+    """Filtra demandas para usuários restritos por cliente."""
+    if user_is_admin():
+        return query
+
+    clientes = clientes_permitidos_usuario()
+    if not clientes:
+        # Sem permissão explícita, não retorna demandas.
+        return query.filter(False)
+
+    filtros = []
+    for cliente in clientes:
+        termo = f"%{cliente.lower()}%"
+        filtros.append(func.lower(Demanda.cliente).like(termo))
+        filtros.append(func.lower(Demanda.carteira).like(termo))
+
+    return query.filter(db.or_(*filtros))
+
+
+def can_access_demanda(demanda: "Demanda") -> bool:
+    if user_is_admin():
+        return True
+
+    clientes = [normalize_key(c) for c in clientes_permitidos_usuario()]
+    cliente_demanda = normalize_key(demanda.cliente)
+    carteira_demanda = normalize_key(demanda.carteira)
+
+    return any(c in cliente_demanda or c in carteira_demanda for c in clientes)
+
+
+def get_demanda_authorized_or_404(demanda_id: int) -> "Demanda":
+    demanda = Demanda.query.get_or_404(demanda_id)
+    if not can_access_demanda(demanda):
+        return None
+    return demanda
+
+
 def seed_data():
     if Demanda.query.count() > 0:
         return
@@ -265,10 +350,48 @@ def init_db():
 
 
 @app.before_request
-def ensure_db_ready():
+def ensure_db_ready_and_auth():
     if not getattr(app, "_db_ready", False):
         init_db()
         app._db_ready = True
+
+    public_endpoints = {"login", "health", "static"}
+    endpoint = request.endpoint or ""
+    if endpoint in public_endpoints or endpoint.startswith("static"):
+        return None
+
+    if session.get("logged_in"):
+        return None
+
+    if request.path.startswith("/api/") or request.path == "/db-status":
+        return jsonify({"error": "login_required"}), 401
+
+    return redirect(url_for("login"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip().lower()
+        password = request.form.get("password") or ""
+
+        if username in USUARIOS and USUARIOS[username] == password:
+            session.clear()
+            session["logged_in"] = True
+            session["user"] = username
+            session["is_admin"] = username in USUARIOS_ADMIN
+            session["clientes_permitidos"] = USUARIOS_RESTRITOS_CLIENTE.get(username, [])
+            return redirect(url_for("index"))
+
+        error = "Usuário ou senha inválidos."
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 @app.route("/")
@@ -314,6 +437,9 @@ def api_meta():
         "status_options": STATUS_OPTIONS,
         "analistas": ANALISTAS,
         "validacao_options": VALIDACAO_OPTIONS,
+        "usuario": session.get("user", ""),
+        "is_admin": user_is_admin(),
+        "clientes_permitidos": clientes_permitidos_usuario(),
     })
 
 
@@ -323,7 +449,7 @@ def list_demandas():
     status = (request.args.get("status") or "").strip()
     analista = (request.args.get("analista") or "").strip()
 
-    query = Demanda.query
+    query = apply_access_filter(Demanda.query)
     if search:
         like = f"%{search}%"
         query = query.filter(
@@ -341,14 +467,14 @@ def list_demandas():
     demandas = query.order_by(Demanda.id.asc()).all()
 
     status_counts = {status_name: 0 for status_name in STATUS_OPTIONS}
-    all_rows_for_counts = Demanda.query.all()
+    all_rows_for_counts = apply_access_filter(Demanda.query).all()
     for item in all_rows_for_counts:
         status_counts[item.status_etapa_atual] = status_counts.get(item.status_etapa_atual, 0) + 1
 
     return jsonify({
         "items": [d.to_dict() for d in demandas],
         "cards": {
-            "Total": Demanda.query.count(),
+            "Total": apply_access_filter(Demanda.query).count(),
             **status_counts,
         },
     })
@@ -366,7 +492,9 @@ def create_demanda():
 
 @app.route("/api/demandas/<int:demanda_id>", methods=["PUT"])
 def update_demanda(demanda_id):
-    demanda = Demanda.query.get_or_404(demanda_id)
+    demanda = get_demanda_authorized_or_404(demanda_id)
+    if demanda is None:
+        return jsonify({"error": "forbidden"}), 403
     data = request.get_json(force=True) or {}
     apply_payload(demanda, data, creating=False)
     db.session.commit()
@@ -375,7 +503,9 @@ def update_demanda(demanda_id):
 
 @app.route("/api/demandas/<int:demanda_id>", methods=["DELETE"])
 def delete_demanda(demanda_id):
-    demanda = Demanda.query.get_or_404(demanda_id)
+    demanda = get_demanda_authorized_or_404(demanda_id)
+    if demanda is None:
+        return jsonify({"error": "forbidden"}), 403
     checkpoint = Checkpoint.query.filter_by(demanda_id=demanda_id).first()
     if checkpoint:
         db.session.delete(checkpoint)
@@ -386,7 +516,9 @@ def delete_demanda(demanda_id):
 
 
 def get_or_create_checkpoint(demanda_id: int) -> Checkpoint:
-    demanda = Demanda.query.get_or_404(demanda_id)
+    demanda = get_demanda_authorized_or_404(demanda_id)
+    if demanda is None:
+        return None
     checkpoint = Checkpoint.query.filter_by(demanda_id=demanda.id).first()
     if checkpoint:
         return checkpoint
@@ -410,7 +542,9 @@ def checkpoint_meta():
 
 @app.route("/api/demandas/<int:demanda_id>/checkpoint", methods=["GET"])
 def get_checkpoint(demanda_id):
-    demanda = Demanda.query.get_or_404(demanda_id)
+    demanda = get_demanda_authorized_or_404(demanda_id)
+    if demanda is None:
+        return jsonify({"error": "forbidden"}), 403
     checkpoint = get_or_create_checkpoint(demanda.id)
     return jsonify({
         "demanda": demanda.to_dict(),
@@ -422,13 +556,17 @@ def get_checkpoint(demanda_id):
 def update_checkpoint(demanda_id):
     Checkpoint.query.filter_by(demanda_id=demanda_id).first()
     checkpoint = get_or_create_checkpoint(demanda_id)
+    if checkpoint is None:
+        return jsonify({"error": "forbidden"}), 403
     data = request.get_json(force=True) or {}
     for field in CHECKPOINT_FIELDS:
         if field in data:
             setattr(checkpoint, field, clean_text(data.get(field)))
     checkpoint.observacoes = clean_text(data.get("observacoes"))
     db.session.commit()
-    demanda = Demanda.query.get_or_404(demanda_id)
+    demanda = get_demanda_authorized_or_404(demanda_id)
+    if demanda is None:
+        return jsonify({"error": "forbidden"}), 403
     return jsonify({
         "demanda": demanda.to_dict(),
         "checkpoint": checkpoint.to_dict(),
@@ -438,9 +576,13 @@ def update_checkpoint(demanda_id):
 @app.route("/api/demandas/<int:demanda_id>/checkpoint/reset", methods=["POST"])
 def reset_checkpoint(demanda_id):
     checkpoint = get_or_create_checkpoint(demanda_id)
+    if checkpoint is None:
+        return jsonify({"error": "forbidden"}), 403
     for field, value in CHECKPOINT_DEFAULTS.items():
         setattr(checkpoint, field, value)
-    demanda = Demanda.query.get_or_404(demanda_id)
+    demanda = get_demanda_authorized_or_404(demanda_id)
+    if demanda is None:
+        return jsonify({"error": "forbidden"}), 403
     if demanda.validacao_dados_locator == "C/CPF":
         checkpoint.dnis_portal_voz = "ada-locator-comcpf-history"
     checkpoint.observacoes = None
@@ -489,7 +631,7 @@ def farol_for(demanda: Demanda, checkpoint_stats: dict, today: date):
 
 @app.route("/api/indicadores")
 def api_indicadores():
-    demandas = Demanda.query.order_by(Demanda.id.asc()).all()
+    demandas = apply_access_filter(Demanda.query).order_by(Demanda.id.asc()).all()
     today = date.today()
 
     status_counts = {name: 0 for name in STATUS_OPTIONS}

@@ -37,6 +37,34 @@ O fundo possui gradiente fluido animado e interação com o movimento do mouse.
 
 ---
 
+## Login
+
+A tela de login usa o dicionário `USUARIOS` dentro do `app.py`.
+
+Usuários administradores visualizam toda a esteira:
+
+```txt
+admin / 123456
+gerber / nicolas1616
+elvis.santos@olos.com.br / olos@2026
+nubia.gomes@olos.com.br / olos@2026
+eduardo.molina@olos.com.br / olos@2026
+michele.silva@olos.com.br / olos@2026
+```
+
+Usuários restritos por cliente visualizam somente demandas compatíveis com o cliente/carteira permitidos:
+
+```txt
+sky / sky123
+negocie_online / negocie@2026
+talentos / talentos123
+sky_talentos / multi123
+link / link123
+```
+
+> Observação: para ambiente público, não é recomendado manter senhas reais no código. Para o uso interno atual, o painel já está preparado conforme solicitado.
+
+
 ## Rodar localmente
 
 Entre na pasta onde está o `app.py`:
@@ -119,6 +147,8 @@ FLASK_DEBUG=0
 ```
 
 Use sempre a **Internal Database URL** do banco Render no serviço web.
+
+O login multiusuário desta versão está no `app.py`, portanto não precisa cadastrar `LOGIN_USER` e `LOGIN_PASSWORD` no Render.
 
 Nunca cole a URL real do banco dentro do código, README ou GitHub.
 
