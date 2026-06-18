@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel de Demandas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand-mark" title="Painel de Demandas">
+      <span></span><span></span><span></span>
+    </div>
+    <nav class="nav-icons" aria-label="Menu lateral">
+      <button class="nav-icon active" data-view="demandas" title="Esteira de Demandas">▦</button>
+      <button class="nav-icon" data-view="checkpoint" title="Checkpoint Locator">✓</button>
+      <button class="nav-icon" data-view="indicadores" title="Indicadores">◔</button>
+      <button class="nav-icon" title="Projetos">▣</button>
+      <button class="nav-icon" title="Equipe">♙</button>
+    </nav>
+    <button class="nav-icon help" title="Ajuda">?</button>
+  </aside>
+
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Esteira OSP</p>
+        <h1>Painel de Demandas</h1>
+      </div>
+      <div class="top-actions">
+        <button class="ghost-btn" id="refreshBtn" title="Atualizar dados">⟳</button>
+        <div class="user-chip">AG</div>
+      </div>
+    </header>
+
+    <section class="view-section active" id="demandasView">
+    <section class="cards-grid" id="cardsGrid">
+      <article class="kpi-card total"><div><p>Total</p><strong id="cardTotal">0</strong></div><span>📋</span></article>
+      <article class="kpi-card implantado"><div><p>Implantado</p><strong id="cardImplantado">0</strong></div><span>✓</span></article>
+      <article class="kpi-card poc"><div><p>POC</p><strong id="cardPOC">0</strong></div><span>⚗</span></article>
+      <article class="kpi-card homolog"><div><p>Homolog cliente</p><strong id="cardHomolog">0</strong></div><span>♙</span></article>
+      <article class="kpi-card fila"><div><p>Fila OSP</p><strong id="cardFila">0</strong></div><span>👥</span></article>
+      <article class="kpi-card mapeamento"><div><p>Em Mapeamento</p><strong id="cardMapeamento">0</strong></div><span>🗺</span></article>
+    </section>
+
+    <section class="panel">
+      <div class="filters-row">
+        <label class="search-box">
+          <span>⌕</span>
+          <input id="searchInput" type="search" placeholder="Buscar por cliente, carteira ou analista...">
+        </label>
+
+        <label class="select-box">
+          <span>▾</span>
+          <select id="statusFilter">
+            <option value="">Filtrar por status</option>
+            {% for status in status_options %}<option value="{{ status }}">{{ status }}</option>{% endfor %}
+          </select>
+        </label>
+
+        <label class="select-box">
+          <span>▾</span>
+          <select id="analistaFilter">
+            <option value="">Filtrar por analista</option>
+            {% for analista in analistas %}<option value="{{ analista }}">{{ analista }}</option>{% endfor %}
+          </select>
+        </label>
+
+        <button type="button" class="primary-btn" id="newDemandBtn">+ Nova Demanda</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="demand-table">
+          <thead>
+            <tr>
+              <th>Acompanhamento</th>
+              <th class="center">ID</th>
+              <th>Cliente</th>
+              <th>Validação Dados Locator</th>
+              <th>Carteira</th>
+              <th>Status Etapa Atual</th>
+              <th class="center">Dias POC</th>
+              <th>Início POC</th>
+              <th>Final POC</th>
+              <th>Wrike</th>
+              <th class="actions-col">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="demandTableBody">
+            <tr><td colspan="11" class="empty-state">Carregando demandas...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    </section>
+
+    <section class="view-section" id="checkpointView">
+      <section class="checkpoint-hero">
+        <div>
+          <p class="eyebrow">Pré-voo de configuração</p>
+          <h2>Checkpoint Locator</h2>
+          <p>Selecione uma demanda para validar os campos de configuração do cliente/carteira. Cada ID da esteira tem seu próprio checklist vinculado.</p>
+        </div>
+        <label class="checkpoint-selector">
+          Demanda
+          <select id="checkpointDemandaSelect">
+            <option value="">Selecione uma demanda</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="checkpoint-summary" id="checkpointSummary">
+        <article class="kpi-card total"><div><p>Total de Checks</p><strong id="checkpointTotal">0</strong></div><span>☑</span></article>
+        <article class="kpi-card implantado"><div><p>Configurados</p><strong id="checkpointOk">0</strong></div><span>✓</span></article>
+        <article class="kpi-card homolog"><div><p>Pendentes</p><strong id="checkpointPending">0</strong></div><span>!</span></article>
+        <article class="kpi-card poc"><div><p>% Conclusão</p><strong id="checkpointPercent">0%</strong></div><span>◔</span></article>
+      </section>
+
+      <section class="panel checkpoint-panel">
+        <div class="checkpoint-title-row">
+          <div>
+            <p class="eyebrow">Cliente / Carteira</p>
+            <h3 id="checkpointDemandTitle">Nenhuma demanda selecionada</h3>
+            <p id="checkpointDemandSubtitle" class="muted-text">Escolha uma demanda para abrir o checklist.</p>
+          </div>
+          <div class="checkpoint-actions">
+            <button type="button" class="secondary-btn" id="resetCheckpointBtn">Aplicar modelo padrão</button>
+            <button type="button" class="primary-btn" id="saveCheckpointBtn">Salvar Checkpoint</button>
+          </div>
+        </div>
+
+        <div class="checkpoint-table-wrap">
+          <table class="checkpoint-table">
+            <thead>
+              <tr>
+                <th>Check List</th>
+                <th>Validador</th>
+                <th>Status</th>
+                <th>Obs sobre o campo validador</th>
+              </tr>
+            </thead>
+            <tbody id="checkpointTableBody">
+              <tr><td colspan="4" class="empty-state">Selecione uma demanda para carregar o checklist.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <label class="checkpoint-notes">Observações gerais
+          <textarea id="checkpointObservacoes" placeholder="Use este campo para observações da configuração, exceções ou próximos passos."></textarea>
+        </label>
+      </section>
+    </section>
+
+
+    <section class="view-section" id="indicadoresView">
+      <section class="checkpoint-hero indicators-hero">
+        <div>
+          <p class="eyebrow">Gestão executiva</p>
+          <h2>Indicadores</h2>
+          <p>Consolidação da esteira, checkpoints e prazos para enxergar gargalos, pendências e prioridades de implantação.</p>
+        </div>
+        <button type="button" class="primary-btn" id="refreshIndicatorsBtn">Atualizar Indicadores</button>
+      </section>
+
+      <section class="cards-grid indicators-cards">
+        <article class="kpi-card total"><div><p>Total Demandas</p><strong id="indTotalDemandas">0</strong></div><span>📋</span></article>
+        <article class="kpi-card poc"><div><p>Em Implantação/POC</p><strong id="indImplantacao">0</strong></div><span>🚀</span></article>
+        <article class="kpi-card implantado"><div><p>Implantadas</p><strong id="indImplantadas">0</strong></div><span>✓</span></article>
+        <article class="kpi-card homolog"><div><p>Pend. Configuração</p><strong id="indPendConfig">0</strong></div><span>!</span></article>
+        <article class="kpi-card fila"><div><p>Conclusão Média</p><strong id="indMediaCheckpoint">0%</strong></div><span>◔</span></article>
+        <article class="kpi-card mapeamento"><div><p>Vencidas</p><strong id="indVencidas">0</strong></div><span>⏱</span></article>
+      </section>
+
+      <section class="indicator-grid">
+        <article class="panel indicator-card wide">
+          <div class="section-title-row">
+            <div><p class="eyebrow">Distribuição</p><h3>Status da Esteira</h3></div>
+          </div>
+          <div class="bar-list" id="statusChart"></div>
+        </article>
+
+        <article class="panel indicator-card">
+          <div class="section-title-row">
+            <div><p class="eyebrow">Prazos</p><h3>Farol de Prazo</h3></div>
+          </div>
+          <div class="mini-grid" id="prazoGrid"></div>
+        </article>
+
+        <article class="panel indicator-card wide">
+          <div class="section-title-row">
+            <div><p class="eyebrow">Carga operacional</p><h3>Demandas por Analista</h3></div>
+          </div>
+          <div class="table-wrap compact-table-wrap">
+            <table class="demand-table compact-table">
+              <thead><tr><th>Analista</th><th class="center">Total</th><th class="center">POC</th><th class="center">Fila OSP</th><th class="center">Pend. Checkpoint</th></tr></thead>
+              <tbody id="analistaIndicatorBody"><tr><td colspan="5" class="empty-state">Carregando...</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel indicator-card">
+          <div class="section-title-row">
+            <div><p class="eyebrow">Gargalos</p><h3>Ranking de Pendências</h3></div>
+          </div>
+          <div class="pending-ranking" id="pendingRanking"></div>
+        </article>
+      </section>
+
+      <section class="panel indicator-card farol-panel">
+        <div class="section-title-row">
+          <div>
+            <p class="eyebrow">Prioridade de atenção</p>
+            <h3>Farol de Clientes e Carteiras</h3>
+          </div>
+          <p class="muted-text">Verde: 100% configurado. Amarelo: 70% a 99%. Laranja: abaixo de 70%. Vermelho: vencido ou sem previsão.</p>
+        </div>
+        <div class="table-wrap">
+          <table class="demand-table compact-table">
+            <thead>
+              <tr>
+                <th class="center">ID</th><th>Cliente</th><th>Carteira</th><th>Status Esteira</th><th class="center">Checkpoint</th><th class="center">Pendências</th><th>Final POC</th><th class="center">Farol</th>
+              </tr>
+            </thead>
+            <tbody id="farolTableBody"><tr><td colspan="8" class="empty-state">Carregando indicadores...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div class="modal" id="demandModal" hidden>
+    <form class="modal-card" id="demandForm">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Cadastro editável</p>
+          <h2 id="modalTitle">Nova Demanda</h2>
+        </div>
+        <button type="button" class="icon-btn" id="closeModalBtn">×</button>
+      </div>
+
+      <input type="hidden" id="demandaId">
+      <div class="form-grid">
+        <label>Acompanhamento
+          <select id="acompanhamento">
+            <option value="">Selecione</option>
+            {% for analista in analistas %}<option value="{{ analista }}">{{ analista }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>ID
+          <input id="idDisplay" type="text" placeholder="Automático" disabled>
+        </label>
+        <label>Cliente
+          <input id="cliente" type="text" required placeholder="Ex: Talentos">
+        </label>
+        <label>Validação Dados Locator
+          <select id="validacao_dados_locator">
+            <option value="">Selecione</option>
+            {% for validacao in validacao_options %}<option value="{{ validacao }}">{{ validacao }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Carteira
+          <input id="carteira" type="text" placeholder="Ex: MERCADO PAGO">
+        </label>
+        <label>Status Etapa Atual
+          <select id="status_etapa_atual" required>
+            {% for status in status_options %}<option value="{{ status }}">{{ status }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Início POC
+          <input id="inicio_poc" type="date">
+        </label>
+        <label>Final POC
+          <input id="final_poc" type="date">
+        </label>
+        <label class="full-width">Wrike
+          <input id="wrike" type="url" placeholder="Cole aqui o link da pasta/projeto">
+        </label>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="secondary-btn" id="cancelBtn">Cancelar</button>
+        <button type="submit" class="primary-btn">Salvar Demanda</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
