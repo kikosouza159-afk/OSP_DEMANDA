@@ -46,6 +46,8 @@ USUARIOS = {
     "eduardo.molina@olos.com.br": "olos@2026",
     "michele.silva@olos.com.br": "olos@2026",
     "marcelo.rizzetto@olos.com.br": "olos@2026",
+    "hayane.silva@olos.com.br": "olos@2026",
+    
 
     # Usuários restritos por cliente
     "sky": "sky123",
