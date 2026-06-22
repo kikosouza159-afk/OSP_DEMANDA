@@ -75,7 +75,7 @@ USUARIOS_ADMIN = {
     "michele.silva@olos.com.br",
     "hayane.silva@olos.com.br",
     "marcelo.rizzetto@olos.com.br",
-    "juliana.santos@olos.com.br"
+    "juliana.santos@olos.com.br",
 }
 
 db = SQLAlchemy(app)
