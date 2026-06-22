@@ -12,7 +12,7 @@ except Exception:
 
 from flask import Flask, jsonify, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func, text
+from sqlalchemy import func, text, or_
 
 
 def normalize_database_url(url: str | None) -> str:
@@ -45,10 +45,6 @@ USUARIOS = {
     "nubia.gomes@olos.com.br": "olos@2026",
     "eduardo.molina@olos.com.br": "olos@2026",
     "michele.silva@olos.com.br": "olos@2026",
-    "marcelo.rizzetto@olos.com.br": "olos@2026",
-    "hayane.silva@olos.com.br": "olos@2026",
-    "juliana.santos@olos.com.br":"olos@2026",
-    
 
     # Usuários restritos por cliente
     "sky": "sky123",
@@ -73,9 +69,6 @@ USUARIOS_ADMIN = {
     "nubia.gomes@olos.com.br",
     "eduardo.molina@olos.com.br",
     "michele.silva@olos.com.br",
-    "hayane.silva@olos.com.br",
-    "marcelo.rizzetto@olos.com.br",
-    "juliana.santos@olos.com.br",
 }
 
 db = SQLAlchemy(app)
@@ -278,7 +271,7 @@ def apply_access_filter(query):
         filtros.append(func.lower(Demanda.cliente).like(termo))
         filtros.append(func.lower(Demanda.carteira).like(termo))
 
-    return query.filter(db.or_(*filtros))
+    return query.filter(or_(*filtros))
 
 
 def can_access_demanda(demanda: "Demanda") -> bool:
@@ -358,14 +351,22 @@ def init_db():
 
 @app.before_request
 def ensure_db_ready_and_auth():
+    """
+    Mantém /health, /login e arquivos estáticos fora da inicialização do banco.
+
+    Assim o Render consegue validar o serviço mesmo quando o DATABASE_URL
+    estiver incorreto ou o PostgreSQL estiver temporariamente indisponível.
+    O banco só é inicializado nas rotas protegidas do painel.
+    """
+    public_endpoints = {"login", "health", "static"}
+    endpoint = request.endpoint or ""
+
+    if endpoint in public_endpoints or endpoint.startswith("static"):
+        return None
+
     if not getattr(app, "_db_ready", False):
         init_db()
         app._db_ready = True
-
-    public_endpoints = {"login", "health", "static"}
-    endpoint = request.endpoint or ""
-    if endpoint in public_endpoints or endpoint.startswith("static"):
-        return None
 
     if session.get("logged_in"):
         return None
@@ -460,7 +461,7 @@ def list_demandas():
     if search:
         like = f"%{search}%"
         query = query.filter(
-            db.or_(
+            or_(
                 func.lower(Demanda.cliente).like(like),
                 func.lower(Demanda.carteira).like(like),
                 func.lower(Demanda.acompanhamento).like(like),
@@ -478,8 +479,20 @@ def list_demandas():
     for item in all_rows_for_counts:
         status_counts[item.status_etapa_atual] = status_counts.get(item.status_etapa_atual, 0) + 1
 
+    items = []
+    for demanda in demandas:
+        item = demanda.to_dict()
+        checkpoint_stats = checkpoint_stats_for_demanda(demanda.id)
+        item.update({
+            "checkpoint_percent": checkpoint_stats.get("percent", 0),
+            "checkpoint_pending": checkpoint_stats.get("pending", checkpoint_stats.get("total", 0)),
+            "checkpoint_total": checkpoint_stats.get("total", 0),
+            "checkpoint_ok": (checkpoint_stats.get("pending", 0) == 0 and checkpoint_stats.get("percent", 0) >= 100),
+        })
+        items.append(item)
+
     return jsonify({
-        "items": [d.to_dict() for d in demandas],
+        "items": items,
         "cards": {
             "Total": apply_access_filter(Demanda.query).count(),
             **status_counts,
