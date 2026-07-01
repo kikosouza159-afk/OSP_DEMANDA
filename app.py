@@ -73,7 +73,7 @@ USUARIOS_ADMIN = {
 
 db = SQLAlchemy(app)
 
-STATUS_OPTIONS = ["Implantado", "POC", "Homolog cliente", "Fila OSP", "Em Mapeamento"]
+STATUS_OPTIONS = ["Implantado", "POC", "Homolog cliente", "Fila OSP", "Em Mapeamento"," Poc Paralisada"]
 ANALISTAS = ["Elvis", "Duda", "Molina", "Pedro", "Michele", "Sheila", "Hayane"]
 VALIDACAO_OPTIONS = ["S/CPF", "C/CPF"]
 
